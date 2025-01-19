@@ -27,6 +27,27 @@ class DroneEnv(gym.Env):
 
         self.near_collision = np.array([0, 0, 0])
 
+        angles = np.linspace(0, 2 * np.pi, 4, endpoint=False)
+        self.rays = np.unique(
+            np.array(
+                [
+                    [
+                        np.array([np.cos(angle), np.sin(angle), 0]).round(decimals=6)
+                        for angle in angles
+                    ],
+                    [
+                        np.array([0, np.cos(angle), np.sin(angle)]).round(decimals=6)
+                        for angle in angles
+                    ],
+                    [
+                        np.array([np.cos(angle), 0, np.sin(angle)]).round(decimals=6)
+                        for angle in angles
+                    ],
+                ]
+            ).reshape(-1, 3),
+            axis=0,
+        )
+
         self.colliders = [
             [
                 np.array([0, 0, 0]),
@@ -74,6 +95,7 @@ class DroneEnv(gym.Env):
 
         # distance, closest point, collider index
         closest_collider = (np.inf, None, None)
+        prod_totals = np.zeros(len(self.rays))
 
         for idx, collider in enumerate(self.colliders):
             # Get normal vector of plane
@@ -150,6 +172,15 @@ class DroneEnv(gym.Env):
 
             if closest_dist < closest_collider[0]:
                 closest_collider = (closest_dist, closest_point, idx)
+
+            for r, ray in enumerate(self.rays):
+                dir_unit = (closest_point - self.pos) / np.linalg.norm(
+                    closest_point - self.pos
+                )
+
+                projection = np.clip(np.dot(ray, dir_unit), 0, 1)
+                if (projection > prod_totals[r]) and closest_dist < 1:
+                    prod_totals[r] = projection * (1 - closest_dist)
 
         self.near_collision = closest_collider[1]
         self.dist_slice.append(closest_collider[0])
